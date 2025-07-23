@@ -1,0 +1,9 @@
+AURIX Flasher Software Tool 3.0.4.0, built on 3/11/2025 7:09:42 AM
+::Connected to device... [TC3x] TC37x 
+::Loading  HEX file .......... 
+ ::Warning: The given program file is trying to write on reserved memory addresses, which will be skipped.
+::Erasing Flash memory .......... (Pass)
+::Programming Flash memory ..........(Pass)
+Overall time: 931 ms
+AURIXFlasher Exit Status: Pass
+Flashing was successfull
