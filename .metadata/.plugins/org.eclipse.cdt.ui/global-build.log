@@ -4849,3 +4849,8 @@ ROM: 0x5673 (22131) = code: 0x40ae (16558) + romdata: 0x15c5 (5573)
 RAM: 0x13b25 (80677) = data + bss
 Finished building: TC3xx_Traffic_Generator.siz
  
+AURIX Flasher Software Tool 3.0.4.0, built on 3/11/2025 7:09:42 AM
+::Cannot initialize device connection... Exiting 
+Overall time: 116 ms
+AURIXFlasher Exit Status: Fail
+Flashing failed
