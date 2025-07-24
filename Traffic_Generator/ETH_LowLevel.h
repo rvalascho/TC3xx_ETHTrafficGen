@@ -54,8 +54,8 @@
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
 
-void ETH_lowlevel_init_RMII(void);
+void ETH_lowlevel_init_RMII(uint8 numTxQueues, uint8 numRxQueues);
 void ETH_lowlevel_init_RGMII(void);
-uint8 low_level_output(uint16 length);
+uint8 low_level_output(uint8 **payloads, uint16 *lengths, uint8 count);
 
 #endif /* TRAFFIC_GENERATOR_ETH_LOWLEVEL_H_ */

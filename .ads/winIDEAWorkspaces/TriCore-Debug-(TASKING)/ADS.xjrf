@@ -638,33 +638,9 @@
         <Count>0</Count>
         <Enabled>true</Enabled>
         <Expression></Expression>
-        <Location>&quot;..\..\..\Cpu0_Main.c&quot;::133</Location>
+        <Location>&quot;..\..\..\Cpu0_Main.c&quot;::139</Location>
         <ProcessFilter></ProcessFilter>
        </__.0>
-       <__.1>
-        <ActionEnabled>false</ActionEnabled>
-        <ActionParams></ActionParams>
-        <ActionScript></ActionScript>
-        <ActionShow>false</ActionShow>
-        <Condition>false</Condition>
-        <Count>0</Count>
-        <Enabled>true</Enabled>
-        <Expression></Expression>
-        <Location>&quot;..\..\..\Libraries\iLLD\TC37A\Tricore\Geth\Eth\IfxGeth_Eth.c&quot;::681</Location>
-        <ProcessFilter></ProcessFilter>
-       </__.1>
-       <__.2>
-        <ActionEnabled>false</ActionEnabled>
-        <ActionParams></ActionParams>
-        <ActionScript></ActionScript>
-        <ActionShow>false</ActionShow>
-        <Condition>false</Condition>
-        <Count>0</Count>
-        <Enabled>true</Enabled>
-        <Expression></Expression>
-        <Location>&quot;..\..\..\Traffic_Generator\ETH_LowLevel.c&quot;::223</Location>
-        <ProcessFilter></ProcessFilter>
-       </__.2>
       </BPs>
       <Processes>
        <__.0>

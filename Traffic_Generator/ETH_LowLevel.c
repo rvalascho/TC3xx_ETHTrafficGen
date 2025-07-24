@@ -34,6 +34,7 @@
 
 #include "IfxGeth.h"
 #include "IfxGeth_Eth.h"
+#include <string.h>
 
 #if TOGGLE==1
 #include "IfxGeth_Phy_Dp83825i.h"
@@ -92,10 +93,10 @@
 /*********************************************************************************************************************/
 IfxGeth_Eth ethernetif;
 
-uint32 isrTxCount=0;
-uint32 isrRxCount=0;
-uint8 channel0TxBuffer1[IFXGETH_MAX_TX_DESCRIPTORS][IFXGETH_MAX_TX_BUFFER_SIZE];
-uint8 channel0RxBuffer1[IFXGETH_MAX_RX_DESCRIPTORS][IFXGETH_MAX_RX_BUFFER_SIZE];
+#define NUM_TX_CHANNELS 8
+#define NUM_RX_CHANNELS 1
+uint8 channelTxBuffer1[NUM_TX_CHANNELS][IFXGETH_MAX_TX_DESCRIPTORS][IFXGETH_MAX_TX_BUFFER_SIZE];
+uint8 channelRxBuffer1[NUM_RX_CHANNELS][IFXGETH_MAX_RX_DESCRIPTORS][IFXGETH_MAX_RX_BUFFER_SIZE];
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
 /*********************************************************************************************************************/
@@ -143,30 +144,51 @@ const IfxGeth_Eth_RmiiPins rmii_pins = {
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
+
+void ETH_configureQueues(IfxGeth_Eth_Config *config, uint8 numTx, uint8 numRx)
+{
+    config->mtl.numOfTxQueues = numTx;
+    config->mtl.numOfRxQueues = numRx;
+    config->dma.numOfTxChannels = numTx;
+    config->dma.numOfRxChannels = numRx;
+
+    for (uint8 i = 0; i < numTx; i++)
+    {
+        config->mtl.txQueue[i].txQueueSize     = IfxGeth_QueueSize_2560Bytes;
+        config->mtl.txQueue[i].storeAndForward = TRUE;
+
+        config->dma.txChannel[i].channelId       = (IfxGeth_TxDmaChannel)i;
+        config->dma.txChannel[i].txDescrList     = (IfxGeth_TxDescrList *)&IfxGeth_Eth_txDescrList[i];
+        config->dma.txChannel[i].txBuffer1StartAddress = (uint32 *)&channelTxBuffer1[i][0][0];
+        config->dma.txChannel[i].txBuffer1Size   = IFXGETH_MAX_TX_BUFFER_SIZE;
+
+        config->dma.txInterrupt[i].channelId = (IfxGeth_DmaChannel)i;
+        config->dma.txInterrupt[i].priority  = ISR_PRIORITY_GETH_TX;
+        config->dma.txInterrupt[i].provider  = (CPU_WHICH_SERVICE_ETHERNET ? (IfxSrc_Tos)(CPU_WHICH_SERVICE_ETHERNET + 1) : (IfxSrc_Tos)CPU_WHICH_SERVICE_ETHERNET);
+    }
+
+    for (uint8 i = 0; i < numRx; i++)
+    {
+        config->mtl.rxQueue[i].rxQueueSize       = IfxGeth_QueueSize_2560Bytes;
+        config->mtl.rxQueue[i].storeAndForward   = TRUE;
+        config->mtl.rxQueue[i].rxDmaChannelMap   = (IfxGeth_RxDmaChannel)i;
+
+        config->dma.rxChannel[i].channelId       = (IfxGeth_RxDmaChannel)i;
+        config->dma.rxChannel[i].rxDescrList     = (IfxGeth_RxDescrList *)&IfxGeth_Eth_rxDescrList[i];
+        config->dma.rxChannel[i].rxBuffer1StartAddress = (uint32 *)&channelRxBuffer1[i][0][0];
+        config->dma.rxChannel[i].rxBuffer1Size   = IFXGETH_MAX_RX_BUFFER_SIZE;
+
+        config->dma.rxInterrupt[i].channelId = (IfxGeth_DmaChannel)i;
+        config->dma.rxInterrupt[i].priority  = ISR_PRIORITY_GETH_RX;
+        config->dma.rxInterrupt[i].provider  = (CPU_WHICH_SERVICE_ETHERNET ? (IfxSrc_Tos)(CPU_WHICH_SERVICE_ETHERNET + 1) : (IfxSrc_Tos)CPU_WHICH_SERVICE_ETHERNET);
+    }
+
+}
+
 #if TOGGLE==1
-void ETH_lowlevel_init_RMII()
+void ETH_lowlevel_init_RMII(uint8 numTxQueues, uint8 numRxQueues)
 {
 
-    //int     i;
-
-    /* set MAC hardware address length */
-    //netif->hwaddr_len = ETHARP_HWADDR_LEN;
-
-    /* set MAC hardware address */
-    //for (i = 0; i < ETHARP_HWADDR_LEN; i++)
-    //{
-    //    netif->hwaddr[i] = g_Lwip.eth_addr.addr[i];
-    //}
-
-    /* maximum transfer unit */
-    //netif->mtu = 1500;
-
-    /* device capabilities */
-    /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
-    /* we don't set the LINK_UP flag because we don't say when it is linked */
-    //netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
-
-    /* Do whatever else is needed to initialize interface. */
     {
         IfxGeth_Eth_Config GethConfig;
 
@@ -184,39 +206,8 @@ void ETH_lowlevel_init_RMII()
         GethConfig.mac.macAddress[4] = 0x22;
         GethConfig.mac.macAddress[5] = 0x11;
 
-        // MTL configuration
-        GethConfig.mtl.numOfTxQueues = 1;
-        GethConfig.mtl.numOfRxQueues = 1;
-        GethConfig.mtl.txQueue[0].txQueueSize = IfxGeth_QueueSize_2560Bytes;
-        GethConfig.mtl.txQueue[0].storeAndForward = TRUE;
-        GethConfig.mtl.rxQueue[0].rxQueueSize = IfxGeth_QueueSize_2560Bytes;
-        GethConfig.mtl.rxQueue[0].rxDmaChannelMap = IfxGeth_RxDmaChannel_0;
-        GethConfig.mtl.rxQueue[0].storeAndForward = TRUE;
-
-        GethConfig.dma.numOfTxChannels = 1;
-        GethConfig.dma.numOfRxChannels = 1;
-        GethConfig.dma.txChannel[0].channelId = IfxGeth_TxDmaChannel_0;
-        GethConfig.dma.txChannel[0].txDescrList = (IfxGeth_TxDescrList*)&IfxGeth_Eth_txDescrList[0];
-        GethConfig.dma.txChannel[0].txBuffer1StartAddress = (uint32 *)&channel0TxBuffer1[0][0]; // user buffer
-        GethConfig.dma.txChannel[0].txBuffer1Size = IFXGETH_MAX_TX_BUFFER_SIZE; // used to calculate the next descriptor  buffer offset
-
-        GethConfig.dma.rxChannel[0].channelId = IfxGeth_RxDmaChannel_0;
-        GethConfig.dma.rxChannel[0].rxDescrList = (IfxGeth_RxDescrList *)&IfxGeth_Eth_rxDescrList[0];
-        GethConfig.dma.rxChannel[0].rxBuffer1StartAddress = (uint32 *)&channel0RxBuffer1[0][0]; // user buffer
-        GethConfig.dma.rxChannel[0].rxBuffer1Size = IFXGETH_MAX_RX_BUFFER_SIZE; // user defined variable
-
-        IfxSrc_Tos gethIsrProvider;
-
-        if (CPU_WHICH_SERVICE_ETHERNET) gethIsrProvider = (IfxSrc_Tos)(CPU_WHICH_SERVICE_ETHERNET+1);
-        else  gethIsrProvider = (IfxSrc_Tos)CPU_WHICH_SERVICE_ETHERNET;
-
-        GethConfig.dma.txInterrupt[0].channelId = IfxGeth_DmaChannel_0;
-        GethConfig.dma.txInterrupt[0].priority = ISR_PRIORITY_GETH_TX;  // priority
-        GethConfig.dma.txInterrupt[0].provider = gethIsrProvider;
-        GethConfig.dma.rxInterrupt[0].channelId = IfxGeth_DmaChannel_0;
-        GethConfig.dma.rxInterrupt[0].priority = ISR_PRIORITY_GETH_RX;  // priority
-        GethConfig.dma.rxInterrupt[0].provider = gethIsrProvider;
-
+        GethConfig.mtl.txSchedulingAlgorithm = IfxGeth_TxSchedulingAlgorithm_sp;
+        ETH_configureQueues(&GethConfig, numTxQueues, numRxQueues);
         // initialize the module
         IfxGeth_enableModule(&MODULE_GETH);
 
@@ -224,19 +215,17 @@ void ETH_lowlevel_init_RMII()
             GETH_GPCTL.B.ALTI0  = ETH_MDIO_PIN.inSelect;
         IfxGeth_Eth_initModule(&ethernetif, &GethConfig);
 
-
         IfxGeth_Eth_Phy_Dp83825i_init();
 
         // and enable transmitter/receiver
-        IfxGeth_Eth_startTransmitters(&ethernetif, 1);
-        IfxGeth_Eth_startReceivers(&ethernetif, 1);
+        IfxGeth_Eth_startTransmitters(&ethernetif, numTxQueues);
+        IfxGeth_Eth_startReceivers(&ethernetif, numRxQueues);
 
         // The ETH is ready for use now!
         /* we set the LINK_UP flag if we have a valid link */
         if (GETH_MAC_PHYIF_CONTROL_STATUS.B.LNKSTS == 1)
         {
             // we have a valid link
-            //netif->flags |= NETIF_FLAG_LINK_UP;
             // we set the correct duplexMode
             if (GETH_MAC_PHYIF_CONTROL_STATUS.B.LNKMOD == 1)
                 IfxGeth_mac_setDuplexMode(ethernetif.gethSFR, IfxGeth_DuplexMode_fullDuplex);
@@ -259,37 +248,16 @@ void ETH_lowlevel_init_RMII()
 #endif
 
 #if TOGGLE==0
-void ETH_lowlevel_init_RGMII()
+void ETH_lowlevel_init_RGMII(uint8 numTxQueues, uint8 numRxQueues)
 {
-
-    //int     i;
-
-    /* set MAC hardware address length */
-    //netif->hwaddr_len = ETHARP_HWADDR_LEN;
-
-    /* set MAC hardware address */
-    //for (i = 0; i < ETHARP_HWADDR_LEN; i++)
-    //{
-    //    netif->hwaddr[i] = g_Lwip.eth_addr.addr[i];
-    //}
-
-    /* maximum transfer unit */
-    //netif->mtu = 1500;
-
-    /* device capabilities */
-    /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
-    /* we don't set the LINK_UP flag because we don't say when it is linked */
-    //netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP;
-
-    /* Do whatever else is needed to initialize interface. */
     {
         IfxGeth_Eth_Config GethConfig;
 
         IfxGeth_Eth_initModuleConfig(&GethConfig, &MODULE_GETH);
         // this is our RTL8211F
         GethConfig.phyInterfaceMode = IfxGeth_PhyInterfaceMode_rgmii;
-        GethConfig.pins.rgmiiPins = &rtl8211f_pins;
-        GethConfig.mac.lineSpeed = IfxGeth_LineSpeed_100Mbps; //IfxGeth_LineSpeed_1000Mbps;
+        GethConfig.pins.rgmiiPins = &rgmii_pins;
+        GethConfig.mac.lineSpeed = IfxGeth_LineSpeed_100Mbps;
         // MAC core configuration
         GethConfig.mac.loopbackMode = IfxGeth_LoopbackMode_disable;
         GethConfig.mac.macAddress[0] = 0xDE;
@@ -299,39 +267,8 @@ void ETH_lowlevel_init_RGMII()
         GethConfig.mac.macAddress[4] = 0xDE;
         GethConfig.mac.macAddress[5] = 0xAD;
 
-        // MTL configuration
-        GethConfig.mtl.numOfTxQueues = 1;
-        GethConfig.mtl.numOfRxQueues = 1;
-        GethConfig.mtl.txQueue[0].txQueueSize = IfxGeth_QueueSize_2560Bytes;
-        GethConfig.mtl.txQueue[0].storeAndForward = TRUE;
-        GethConfig.mtl.rxQueue[0].rxQueueSize = IfxGeth_QueueSize_2560Bytes;
-        GethConfig.mtl.rxQueue[0].rxDmaChannelMap = IfxGeth_RxDmaChannel_0;
-        GethConfig.mtl.rxQueue[0].storeAndForward = TRUE;
-
-        GethConfig.dma.numOfTxChannels = 1;
-        GethConfig.dma.numOfRxChannels = 1;
-        GethConfig.dma.txChannel[0].channelId = IfxGeth_TxDmaChannel_0;
-        GethConfig.dma.txChannel[0].txDescrList = (IfxGeth_TxDescrList*)&IfxGeth_Eth_txDescrList[0];
-        GethConfig.dma.txChannel[0].txBuffer1StartAddress = (uint32 *)&channel0TxBuffer1[0][0]; // user buffer
-        GethConfig.dma.txChannel[0].txBuffer1Size = IFXGETH_MAX_TX_BUFFER_SIZE; // used to calculate the next descriptor  buffer offset
-
-        GethConfig.dma.rxChannel[0].channelId = IfxGeth_RxDmaChannel_0;
-        GethConfig.dma.rxChannel[0].rxDescrList = (IfxGeth_RxDescrList *)&IfxGeth_Eth_rxDescrList[0];
-        GethConfig.dma.rxChannel[0].rxBuffer1StartAddress = (uint32 *)&channel0RxBuffer1[0][0]; // user buffer
-        GethConfig.dma.rxChannel[0].rxBuffer1Size = IFXGETH_MAX_RX_BUFFER_SIZE; // user defined variable
-
-        IfxSrc_Tos gethIsrProvider;
-
-        if (CPU_WHICH_SERVICE_ETHERNET) gethIsrProvider = (IfxSrc_Tos)(CPU_WHICH_SERVICE_ETHERNET+1);
-        else  gethIsrProvider = (IfxSrc_Tos)CPU_WHICH_SERVICE_ETHERNET;
-
-        GethConfig.dma.txInterrupt[0].channelId = IfxGeth_DmaChannel_0;
-        GethConfig.dma.txInterrupt[0].priority = ISR_PRIORITY_GETH_TX;  // priority
-        GethConfig.dma.txInterrupt[0].provider = gethIsrProvider;
-        GethConfig.dma.rxInterrupt[0].channelId = IfxGeth_DmaChannel_0;
-        GethConfig.dma.rxInterrupt[0].priority = ISR_PRIORITY_GETH_RX;  // priority
-        GethConfig.dma.rxInterrupt[0].provider = gethIsrProvider;
-
+        GethConfig.mtl.txSchedulingAlgorithm = IfxGeth_TxSchedulingAlgorithm_sp;
+        ETH_configureQueues(&GethConfig, numTxQueues, numRxQueues);
 
         /* first we reset our phy manually, to make sure that the phy is ready when we init our module */
         {
@@ -365,15 +302,13 @@ void ETH_lowlevel_init_RGMII()
         IfxGeth_Eth_Phy_Rtl8211f_init();
 
         // and enable transmitter/receiver
-        IfxGeth_Eth_startTransmitters(&ethernetif, 1);
-        IfxGeth_Eth_startReceivers(&ethernetif, 1);
+        IfxGeth_Eth_startTransmitters(&ethernetif, numTxQueues);
+        IfxGeth_Eth_startReceivers(&ethernetif, numRxQueues);
 
         // The ETH is ready for use now!
         /* we set the LINK_UP flag if we have a valid link */
         if (GETH_MAC_PHYIF_CONTROL_STATUS.B.LNKSTS == 1)
         {
-            // we have a valid link
-            //netif->flags |= NETIF_FLAG_LINK_UP;
             // we set the correct duplexMode
             if (GETH_MAC_PHYIF_CONTROL_STATUS.B.LNKMOD == 1)
                 IfxGeth_mac_setDuplexMode(ethernetif.gethSFR, IfxGeth_DuplexMode_fullDuplex);
@@ -395,57 +330,15 @@ void ETH_lowlevel_init_RGMII()
 }
 #endif
 
-uint8 low_level_output(uint16 length)
+uint8 low_level_output(uint8 **payloads, uint16 *lengths, uint8 count)
 {
-    //IfxGeth_Eth      *ethernetif = netif->state;
-    //struct pbuf *q;
+    for (uint8 i = 0; i < count; i++)
+    {
+        IfxGeth_TxDmaChannel dmaChannel = (IfxGeth_TxDmaChannel)(i % count);
 
-    //u16_t        length = p->tot_len;
-    //LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE, ("low_level_output (p=%#x)\n", p));
-
-    #if ETH_PAD_SIZE
-        pbuf_header(p, -ETH_PAD_SIZE); /* drop the padding word */
-    #endif
-
-    //if ((p->type_internal == PBUF_REF) || (p->type_internal == PBUF_ROM))
-    //{
-        // if PBUF_REF or PBUF_ROM, no copy into ethernet RAM buffer is needed.
-        // see pbuf_alloc_special()
-        IfxGeth_Eth_sendTransmitBuffer(&ethernetif, length, IfxGeth_TxDmaChannel_0);
-    //}
-   // else
-    //{
-        //initiate transfer();
-       // u8_t *tbuf = IfxGeth_Eth_waitTransmitBuffer(ethernetif, IfxGeth_TxDmaChannel_0);
-        //u16_t l    = 0;
-
-        //for (q = p; q != NULL; q = q->next)
-        //{
-            /* Send the data from the pbuf to the interface, one pbuf at a
-             * time. The size of the data in each pbuf is kept in the ->len
-             * variable. */
-            //memcpy((u8_t *)&tbuf[l], q->payload, q->len);
-            //l = l + q->len;
-            //LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE, ("low_level_output: data=%#x, %d\n", q->payload, q->len));
-            //LWIP_ASSERT("low_level_output: length overflow the buffer\n", (l < 2048));
-        //}
-        /* we correct the buffer 1 size (maybe overwritten in earlier packet */
-        //IfxGeth_TxDescr *pactTxDescriptor;
-        //pactTxDescriptor = (IfxGeth_TxDescr *)IfxGeth_Eth_getActualTxDescriptor(ethernetif, IfxGeth_TxDmaChannel_0);
-        /* set the buffer length to the max. available */
-        //pactTxDescriptor->TDES2.R.B1L = IFXGETH_MAX_TX_BUFFER_SIZE;
-        //IfxGeth_Eth_sendTransmitBuffer(ethernetif, l, IfxGeth_TxDmaChannel_0);
-   // }
-
-    //LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE, ("low_level_output: signal length: %d\n", length));
-
-    #if ETH_PAD_SIZE
-        pbuf_header(p, ETH_PAD_SIZE); /* reclaim the padding word */
-    #endif
-
-    //LINK_STATS_INC(link.xmit);
-
-    //LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE, ("low_level_output: return OK\n"));
-
-   return 0;
+        uint8 *txBuf = IfxGeth_Eth_waitTransmitBuffer(&ethernetif, dmaChannel);
+        memcpy(txBuf, payloads[i], lengths[i]);
+        IfxGeth_Eth_sendTransmitBuffer(&ethernetif, lengths[i], dmaChannel);
+    }
+    return 0;
 }
