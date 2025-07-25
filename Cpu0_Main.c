@@ -125,8 +125,12 @@ void core0_main(void)
     IfxCpu_waitEvent(&g_cpuSyncEvent, 1);
     uint8 numTxQueues = 3;
     uint8 numRxQueues = 1;
-
+#if TOGGLE
     ETH_lowlevel_init_RMII(numTxQueues, numRxQueues);
+#else
+    ETH_lowlevel_init_RGMII(numTxQueues, numRxQueues);
+#endif
+
     //ETH_lowlevel_init_RGMII(numTxQueues, numRxQueues);
     uint8 *payloads[] = { raw_bytes_0, raw_bytes_1, raw_bytes_2 };
     uint16 lengths[] = { sizeof(test_frame_0), sizeof(test_frame_1), sizeof(test_frame_2) };
